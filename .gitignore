@@ -1,3 +1,4 @@
 Debug
 *.vcxproj*
 .vscode
+test/log/*
