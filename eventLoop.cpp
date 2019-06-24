@@ -33,7 +33,7 @@ void EventLoop::run()
 {
     epoll_event events[MAXEVENTS];
     auto ret = epoll_wait(epoll_t, events, MAXEVENTS, -1);
-    LOGDEBUG << "recv fd count:" << ret << std::endl;
+    LOGDEBUG << "recv fd count:" << ret;
     if (ret == -1)
     {
         LOGDEBUG << strerror(errno);
@@ -63,17 +63,21 @@ void EventLoop::run()
             Socket *cliSock = new Socket(cliFd, this);
             this->addReadEvent(cliSock);
             cliSock->setEvent(AOSREAD);
-            LOGDEBUG << "add:" << cliFd << std::endl;
+            LOGDEBUG << "add:" << cliFd;
         }
         else if (skt->getEvent() & AOSREAD)
         {
             LOGDEBUG << "read:" << std::endl;
-            LOGDEBUG << skt->readMsg() << std::endl;
+            LOGDEBUG << skt->readMsg();
         }
         else if (skt->getEvent() & AOSWRITE)
         {
             skt->writeMsg(skt->getLastMsg());
         }
+		if (skt->getEvent() & AOSDELETE)
+		{
+			delete skt;
+		}
     }
 }
 
@@ -92,7 +96,7 @@ int EventLoop::modEvent(Socket *skt)
 			return -1;
         }
 		close(skt->getFd());
-		delete skt;
+		//delete skt;
         errno = tmperrno;
     }
     else

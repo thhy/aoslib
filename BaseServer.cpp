@@ -33,7 +33,7 @@ Socket::Socket(int sockfd, EventLoop *manage) : fd(sockfd), loop(manage)
     const char chOpt = 1;
     setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void *)&chOpt, sizeof(char));
     setsockopt(fd, IPPROTO_TCP, SO_LINGER, (void *)&chOpt, sizeof(char));
-    setsockopt(fd, IPPROTO_TCP, SOCK_NONBLOCK, (void *)&chOpt, sizeof(char));
+    //setsockopt(fd, IPPROTO_TCP, SOCK_NONBLOCK, (void *)&chOpt, sizeof(char));
     setsockopt(fd, IPPROTO_TCP, SO_REUSEADDR, (void *)&chOpt, sizeof(char));
 	setNonBlocking(fd);
 }
@@ -44,7 +44,7 @@ void Socket::server()
     const char chOpt = 1;
     setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void *)&chOpt, sizeof(char));
     setsockopt(fd, IPPROTO_TCP, SO_LINGER, (void *)&chOpt, sizeof(char));
-    setsockopt(fd, IPPROTO_TCP, SOCK_NONBLOCK, (void *)&chOpt, sizeof(char));
+    //setsockopt(fd, IPPROTO_TCP, SOCK_NONBLOCK, (void *)&chOpt, sizeof(char));
     setsockopt(fd, IPPROTO_TCP, SO_REUSEADDR, (void *)&chOpt, sizeof(char));
     assert(fd > 0);
     int ret = bind(fd, (sockaddr *)&listenAddr, sizeof(sockaddr));
@@ -118,6 +118,7 @@ std::string Socket::readMsg()
                 //should close fd
                 LOGDEBUG << "close fd:" << fd << std::endl;
                 ev = this->event | AOSDELETE;
+    			this->setEvent(ev);
                 //close(fd);
                 break;
             }
@@ -127,7 +128,6 @@ std::string Socket::readMsg()
             }
         }
     }
-    this->setEvent(ev);
     this->buffList.push_back(mBuff);
     return mBuff;
 }
@@ -162,7 +162,7 @@ Socket::~Socket()
 {
     if (fd > 0)
     {
-        close(fd);
+        //close(fd);
     }
 };
 
