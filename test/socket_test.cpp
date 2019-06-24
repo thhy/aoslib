@@ -16,8 +16,8 @@ int main()
     auto loop = SingletonImp<EventLoop>::getInstance();
     Socket soc("0.0.0.0", 8081, loop);
     soc.server();
-    soc.setEvent(AOSLISTEN);
     loop->addReadEvent(&soc);
+    soc.setEvent(AOSLISTEN|AOSREAD);
     while (true)
     {
         loop->run();

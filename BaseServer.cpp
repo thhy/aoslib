@@ -1,5 +1,14 @@
 #include "BaseServer.h"
 #include "aosLogger.h"
+int setNonBlocking(int fd)
+{
+	if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0)|O_NONBLOCK)==-1)
+	{
+		LOGERROR << strerror(errno);
+		return -1;
+	}
+	return 0;
+}
 
 Socket::Socket(std::string ip , unsigned int port, EventLoop *manage) : mIp(ip), mPort(port), loop(manage)
 {
@@ -26,6 +35,7 @@ Socket::Socket(int sockfd, EventLoop *manage) : fd(sockfd), loop(manage)
     setsockopt(fd, IPPROTO_TCP, SO_LINGER, (void *)&chOpt, sizeof(char));
     setsockopt(fd, IPPROTO_TCP, SOCK_NONBLOCK, (void *)&chOpt, sizeof(char));
     setsockopt(fd, IPPROTO_TCP, SO_REUSEADDR, (void *)&chOpt, sizeof(char));
+	setNonBlocking(fd);
 }
 
 void Socket::server()
@@ -43,6 +53,7 @@ void Socket::server()
     LOGDEBUG << "bind to " << buff << ":" << ntohs(listenAddr.sin_port) << std::endl;
     assert(ret != -1);
 
+	setNonBlocking(fd);
     ret = listen(fd, 100);
     assert(ret != -1);
 }
@@ -74,6 +85,7 @@ std::string Socket::readMsg()
     while (true)
     {
         char buff[2048];
+		LOGDEBUG << "waiting read...";
         int ret = read(fd, buff, sizeof(buff));
         if (ret > 0)
         {
@@ -90,7 +102,7 @@ std::string Socket::readMsg()
         {
             if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
             {
-                continue;
+                break;
             }
             else
             {
@@ -106,7 +118,7 @@ std::string Socket::readMsg()
                 //should close fd
                 LOGDEBUG << "close fd:" << fd << std::endl;
                 ev = this->event | AOSDELETE;
-                close(fd);
+                //close(fd);
                 break;
             }
             else
@@ -138,7 +150,7 @@ int Socket::getFd()
 int Socket::setEvent(int ev)
 {
     event = ev;
-    this->loop->modEvent(this);
+    return this->loop->modEvent(this);
 }
 
 int Socket::getEvent()

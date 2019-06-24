@@ -16,5 +16,5 @@ namespace src = boost::log::sources;*/
 #define LOGDEBUG LOG(INFO)
 #define LOGINFO LOG(INFO)
 #define LOGWARN LOG(WARNING)
-#define LOFERROR LOG(ERROR)
+#define LOGERROR LOG(ERROR)
 #define LOGFATAL LOG(FATAL)

@@ -21,8 +21,9 @@ public:
     EventLoop();
     void addReadEvent(Socket *skt);
     void run();
-    void modEvent(Socket *skt);
+	int modEvent(Socket *skt);
 private:
     
     int epoll_t;
+	int listenFd;
 };
