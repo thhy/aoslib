@@ -32,6 +32,7 @@ void EventLoop::addReadEvent(Socket *skt)
 void EventLoop::run()
 {
     epoll_event events[MAXEVENTS];
+
     auto ret = epoll_wait(epoll_t, events, MAXEVENTS, -1);
     LOGDEBUG << "recv fd count:" << ret;
     if (ret == -1)
@@ -41,7 +42,7 @@ void EventLoop::run()
     for(int i = 0; i < ret; ++i)
     {
         Socket *skt = (Socket *)events[i].data.ptr;
-        LOGDEBUG << "event:" << skt->getEvent() << std::endl;
+        LOGDEBUG << "fd:"<<skt->getFd() << "event:" << skt->getEvent() << std::endl;
 		if((events[i].events & EPOLLERR)||(events[i].events & EPOLLHUP))
         {
             /* An error has occured on this fd, or the socket is not
@@ -57,18 +58,17 @@ void EventLoop::run()
             int cliFd = skt->acceptCli();
             if (cliFd == -1)
             {
-                LOGDEBUG << strerror(errno)<< std::endl;
+                LOGERROR << strerror(errno)<< std::endl;
                 continue;
             }
             Socket *cliSock = new Socket(cliFd, this);
             this->addReadEvent(cliSock);
             cliSock->setEvent(AOSREAD);
-            LOGDEBUG << "add:" << cliFd;
+            LOGDEBUG << "add fd:" << cliFd;
         }
         else if (skt->getEvent() & AOSREAD)
         {
-            LOGDEBUG << "read:" << std::endl;
-            LOGDEBUG << skt->readMsg();
+            LOGDEBUG << "read:" << skt->readMsg();
         }
         else if (skt->getEvent() & AOSWRITE)
         {
@@ -76,6 +76,7 @@ void EventLoop::run()
         }
 		if (skt->getEvent() & AOSDELETE)
 		{
+			LOGDEBUG << "delete fd:" << skt->getFd();
 			delete skt;
 		}
     }
@@ -83,10 +84,9 @@ void EventLoop::run()
 
 int EventLoop::modEvent(Socket *skt)
 {
-	LOGDEBUG << "epoll_t:" << epoll_t;
     if (skt->getEvent() & AOSDELETE)
     {
-        LOGDEBUG << "delete fd:" << skt->getFd();
+        LOGDEBUG << "close fd:" << skt->getFd();
         int tmperrno = errno;
         errno = 0;
         if (epoll_ctl(epoll_t, EPOLL_CTL_DEL, skt->getFd(), NULL) == -1)
@@ -102,30 +102,21 @@ int EventLoop::modEvent(Socket *skt)
     else
     {
         epoll_event ev;
-		LOGDEBUG << "fd " << skt->getFd() << " event " << skt->getEvent();
         if (skt->getEvent() & AOSREAD)
         {
-			LOGDEBUG << "EPOLLIN";
-            ev.events |= EPOLLIN;
+            ev.events |= EPOLLIN |EPOLLET;
         }
         if (skt->getEvent() & AOSWRITE)
         {
-			LOGDEBUG << "EPOLLOUT";
-            ev.events |= EPOLLOUT;
+            ev.events |= EPOLLOUT |EPOLLET;
         }
         ev.data.fd = skt->getFd();
         ev.data.ptr = skt;
-        int tmperrno = errno;
-        errno = 0;
-		LOGDEBUG << "skt fd: " << skt->getFd();
         if (epoll_ctl(epoll_t, EPOLL_CTL_MOD, skt->getFd(), &ev) == -1)
         {
-			LOGDEBUG << "epoll_t:" << epoll_t;
-        	errno = tmperrno;
             LOGERROR << strerror(errno);
 			return -1;
         }
-        errno = tmperrno;
     }
 	return 0;
 }

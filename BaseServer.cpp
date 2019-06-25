@@ -10,6 +10,19 @@ int setNonBlocking(int fd)
 	return 0;
 }
 
+int setNonLinger(int fd)
+{
+	struct linger so_linger;
+	so_linger.l_onoff = true;
+	so_linger.l_linger = 0;
+	if (setsockopt(fd,SOL_SOCKET,SO_LINGER,&so_linger,sizeof so_linger) == -1)
+	{
+		LOGERROR << strerror(errno);
+		return -1;
+	}
+	return 0;
+}
+
 Socket::Socket(std::string ip , unsigned int port, EventLoop *manage) : mIp(ip), mPort(port), loop(manage)
 {
 
@@ -30,11 +43,17 @@ Socket::Socket(int sockfd, EventLoop *manage) : fd(sockfd), loop(manage)
         LOGDEBUG << "对方IP：%s " << inet_ntoa(listenAddr.sin_addr);
         LOGDEBUG << "对方PORT：%d " << ntohs(listenAddr.sin_port) << std::endl;
     }
-    const char chOpt = 1;
-    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void *)&chOpt, sizeof(char));
-    setsockopt(fd, IPPROTO_TCP, SO_LINGER, (void *)&chOpt, sizeof(char));
+	int yes = 1;
+    if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes)) == -1)
+	{
+		LOGERROR << "set TCP_NODELAY failed";
+	}
+	setNonLinger(fd);
     //setsockopt(fd, IPPROTO_TCP, SOCK_NONBLOCK, (void *)&chOpt, sizeof(char));
-    setsockopt(fd, IPPROTO_TCP, SO_REUSEADDR, (void *)&chOpt, sizeof(char));
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1)
+	{
+		LOGERROR << "set SO_REUSEADDR failed";
+	}
 	setNonBlocking(fd);
 }
 
@@ -42,10 +61,18 @@ void Socket::server()
 {
     fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     const char chOpt = 1;
-    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void *)&chOpt, sizeof(char));
-    setsockopt(fd, IPPROTO_TCP, SO_LINGER, (void *)&chOpt, sizeof(char));
+	int yes = 1;
+	LOGERROR << strerror(errno);
+    if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &yes, sizeof(yes)) == -1)
+	{
+		LOGERROR << "set TCP_NODELAY failed";
+	}
+	setNonLinger(fd);
     //setsockopt(fd, IPPROTO_TCP, SOCK_NONBLOCK, (void *)&chOpt, sizeof(char));
-    setsockopt(fd, IPPROTO_TCP, SO_REUSEADDR, (void *)&chOpt, sizeof(char));
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1)
+	{
+		LOGERROR << "set SO_REUSEADDR failed";
+	}
     assert(fd > 0);
     int ret = bind(fd, (sockaddr *)&listenAddr, sizeof(sockaddr));
     char buff[1024];
@@ -53,7 +80,10 @@ void Socket::server()
     LOGDEBUG << "bind to " << buff << ":" << ntohs(listenAddr.sin_port) << std::endl;
     assert(ret != -1);
 
-	setNonBlocking(fd);
+	if (setNonBlocking(fd) == -1)
+	{
+		LOGERROR << "set nonBlocking failed";
+	}
     ret = listen(fd, 100);
     assert(ret != -1);
 }
@@ -100,7 +130,7 @@ std::string Socket::readMsg()
         }
         else if (ret < 0)
         {
-            if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
+            if (errno == EAGAIN || errno == EINTR)
             {
                 break;
             }
