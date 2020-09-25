@@ -2,11 +2,22 @@
 #include <sys/fcntl.h>
 #include "aosLogger.h"
 
-
 EventLoop::EventLoop()
 {
     epoll_t = epoll_create(1024);
     assert(epoll_t > 0);
+    listenFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    assert(listenFd > 0);
+    sockaddr_in serAddr;
+    serAddr.sin_family = AF_INET;
+    serAddr.sin_port = htons(8080);
+    inet_pton(AF_INET, "127.0.0.1", &serAddr.sin_addr);
+    assert(listen(listenFd, 5) != INVALIDSOCKET);
+    assert(bind(listenFd, (sockaddr *)&serAddr, sizeof(serAddr)) != INVALIDSOCKET);
+    epoll_event event;
+    event.data.fd = listenFd;
+    event.events = AOSEPOLLIN | AOSEPOLLET;
+    assert(epoll_ctl(epoll_t, EPOLL_CTL_ADD, listenFd, &event) != INVALIDSOCKET);
 }
 
 void EventLoop::addReadEvent(Socket *skt)
@@ -14,19 +25,23 @@ void EventLoop::addReadEvent(Socket *skt)
     epoll_event event;
     if (skt->getEvent() & AOSREAD)
         event.events |= EPOLLIN;
-    if(skt->getEvent() & AOSWRITE)
+    if (skt->getEvent() & AOSWRITE)
         event.events |= EPOLLOUT;
     event.data.fd = skt->getFd();
     event.data.ptr = skt;
-    LOGDEBUG << "add fd:" << skt->getFd() <<std::endl;
+    LOGDEBUG << "add fd:" << skt->getFd() << std::endl;
     if (epoll_ctl(epoll_t, EPOLL_CTL_ADD, skt->getFd(), &event) == -1)
-	{
-		LOGDEBUG << strerror(errno) << " add fd " << skt->getFd() << "failed";
-		return;
+    {
+        LOGDEBUG << strerror(errno) << " add fd " << skt->getFd() << "failed";
+        return;
+    }
 
-	}
-	
     // fcntl(epoll_t, F_SETFD, fcntl(epoll_t, F_GETFD)|O_NONBLOCK);
+}
+
+void EventLoop::onAccept()
+{
+    while ()
 }
 
 void EventLoop::run()
@@ -39,26 +54,39 @@ void EventLoop::run()
     {
         LOGDEBUG << strerror(errno);
     }
-    for(int i = 0; i < ret; ++i)
+    for (int i = 0; i < ret; ++i)
     {
+        if (events[i].data.fd == this->listenFd)
+        {
+            sockaddr_in cliAddr;
+            socklen_t cliLen = sizeof(cliAddr);
+            int cliSocket = accept(this->listenFd, (sockaddr *)&cliAddr, &cliLen);
+            if (cliSocket == -1)
+            {
+                if (errno == EAGAIN)
+                {
+                }
+            }
+        }
         Socket *skt = (Socket *)events[i].data.ptr;
-        LOGDEBUG << "fd:"<<skt->getFd() << "event:" << skt->getEvent() << std::endl;
-		if((events[i].events & EPOLLERR)||(events[i].events & EPOLLHUP))
+        LOGDEBUG << "fd:" << skt->getFd() << "event:" << skt->getEvent() << std::endl;
+        if ((events[i].events & EPOLLERR) || (events[i].events & EPOLLHUP))
         {
             /* An error has occured on this fd, or the socket is not
                ready for reading (why were we notified then?) */
-            LOGERROR << "epoll error";;
+            LOGERROR << "epoll error";
+            ;
             close(events[i].data.fd);
-			delete skt;
+            delete skt;
             continue;
         }
 
-        if(skt->getEvent() & AOSLISTEN)
+        if (skt->getEvent() & AOSLISTEN)
         {
             int cliFd = skt->acceptCli();
             if (cliFd == -1)
             {
-                LOGERROR << strerror(errno)<< std::endl;
+                LOGERROR << strerror(errno) << std::endl;
                 continue;
             }
             Socket *cliSock = new Socket(cliFd, this);
@@ -74,11 +102,11 @@ void EventLoop::run()
         {
             skt->writeMsg(skt->getLastMsg());
         }
-		if (skt->getEvent() & AOSDELETE)
-		{
-			LOGDEBUG << "delete fd:" << skt->getFd();
-			delete skt;
-		}
+        if (skt->getEvent() & AOSDELETE)
+        {
+            LOGDEBUG << "delete fd:" << skt->getFd();
+            delete skt;
+        }
     }
 }
 
@@ -91,12 +119,12 @@ int EventLoop::modEvent(Socket *skt)
         errno = 0;
         if (epoll_ctl(epoll_t, EPOLL_CTL_DEL, skt->getFd(), NULL) == -1)
         {
-        	errno = tmperrno;
+            errno = tmperrno;
             LOGDEBUG << strerror(errno);
-			return -1;
+            return -1;
         }
-		close(skt->getFd());
-		//delete skt;
+        close(skt->getFd());
+        //delete skt;
         errno = tmperrno;
     }
     else
@@ -104,19 +132,19 @@ int EventLoop::modEvent(Socket *skt)
         epoll_event ev;
         if (skt->getEvent() & AOSREAD)
         {
-            ev.events |= EPOLLIN |EPOLLET;
+            ev.events |= EPOLLIN | EPOLLET;
         }
         if (skt->getEvent() & AOSWRITE)
         {
-            ev.events |= EPOLLOUT |EPOLLET;
+            ev.events |= EPOLLOUT | EPOLLET;
         }
         ev.data.fd = skt->getFd();
         ev.data.ptr = skt;
         if (epoll_ctl(epoll_t, EPOLL_CTL_MOD, skt->getFd(), &ev) == -1)
         {
             LOGERROR << strerror(errno);
-			return -1;
+            return -1;
         }
     }
-	return 0;
+    return 0;
 }

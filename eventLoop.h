@@ -6,6 +6,12 @@
 
 class Socket;
 
+const int INVALIDSOCKET = -1;
+const int AOSEPOLLIN = EPOLLIN | EPOLLERR | EPOLLHUP;
+const int AOSEPOLLOUT = EPOLLOUT | EPOLLERR | EPOLLHUP;
+const int AOSEPOLLET = EPOLLET;
+// const int AOSEPOLLLT = EPOLLLT
+
 enum Event
 {
     AOSREAD = 1,
@@ -22,6 +28,9 @@ public:
     void addReadEvent(Socket *skt);
     void run();
 	int modEvent(Socket *skt);
+    void onAccept();
+    void onRead();
+    void onWrite();
 private:
     
     int epoll_t;
